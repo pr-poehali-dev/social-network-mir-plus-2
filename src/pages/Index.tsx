@@ -9,6 +9,9 @@ import Icon from '@/components/ui/icon';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
 
 interface Comment {
   id: number;
@@ -40,12 +43,42 @@ interface Message {
   unread: number;
 }
 
+interface UserProfile {
+  name: string;
+  username: string;
+  avatar: string;
+  bio: string;
+  interests: string[];
+}
+
 const Index = () => {
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('feed');
   const [searchQuery, setSearchQuery] = useState('');
   const [newPost, setNewPost] = useState('');
   const [showComments, setShowComments] = useState<{[key: number]: boolean}>({});
   const [newComment, setNewComment] = useState<{[key: number]: string}>({});
+  
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [registerName, setRegisterName] = useState('');
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
+  
+  const [userProfile, setUserProfile] = useState<UserProfile>({
+    name: 'Ваше имя',
+    username: 'username',
+    avatar: '😊',
+    bio: 'Рассказываю о технологиях, делюсь опытом и создаю полезный контент 🚀',
+    interests: ['Дизайн', 'Разработка', 'Искусство', 'Технологии', 'Путешествия'],
+  });
+  
+  const [editProfile, setEditProfile] = useState<UserProfile>(userProfile);
 
   const [posts, setPosts] = useState<Post[]>([
     {
@@ -109,12 +142,59 @@ const Index = () => {
     ));
   };
 
+  const handleLogin = () => {
+    if (loginEmail && loginPassword) {
+      setIsAuthenticated(true);
+      setShowAuthDialog(false);
+      toast({
+        title: 'Добро пожаловать!',
+        description: 'Вы успешно вошли в систему',
+      });
+      setLoginEmail('');
+      setLoginPassword('');
+    }
+  };
+
+  const handleRegister = () => {
+    if (registerName && registerEmail && registerPassword) {
+      setUserProfile(prev => ({ ...prev, name: registerName, username: registerEmail.split('@')[0] }));
+      setIsAuthenticated(true);
+      setShowAuthDialog(false);
+      toast({
+        title: 'Регистрация успешна!',
+        description: `Добро пожаловать, ${registerName}!`,
+      });
+      setRegisterName('');
+      setRegisterEmail('');
+      setRegisterPassword('');
+    }
+  };
+
+  const handleSaveProfile = () => {
+    setUserProfile(editProfile);
+    setShowEditProfile(false);
+    toast({
+      title: 'Профиль обновлён',
+      description: 'Изменения успешно сохранены',
+    });
+  };
+
   const handleNewPost = () => {
+    if (!isAuthenticated) {
+      setShowAuthDialog(true);
+      toast({
+        title: 'Требуется авторизация',
+        description: 'Войдите или зарегистрируйтесь для публикации',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     if (newPost.trim()) {
       const post: Post = {
         id: posts.length + 1,
-        author: 'Вы',
-        avatar: '😊',
+        author: userProfile.name,
+        avatar: userProfile.avatar,
         content: newPost,
         likes: 0,
         comments: 0,
@@ -124,6 +204,10 @@ const Index = () => {
       };
       setPosts([post, ...posts]);
       setNewPost('');
+      toast({
+        title: 'Опубликовано!',
+        description: 'Ваш пост появился в ленте',
+      });
     }
   };
 
@@ -132,14 +216,24 @@ const Index = () => {
   };
 
   const handleAddComment = (postId: number) => {
+    if (!isAuthenticated) {
+      setShowAuthDialog(true);
+      toast({
+        title: 'Требуется авторизация',
+        description: 'Войдите или зарегистрируйтесь для комментирования',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     const commentText = newComment[postId]?.trim();
     if (commentText) {
       setPosts(posts.map(post => {
         if (post.id === postId) {
           const newCommentObj: Comment = {
             id: (post.commentsList?.length || 0) + 1,
-            author: 'Вы',
-            avatar: '😊',
+            author: userProfile.name,
+            avatar: userProfile.avatar,
             content: commentText,
             timestamp: 'Только что',
           };
@@ -182,15 +276,29 @@ const Index = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="relative">
-                <Icon name="Bell" size={20} />
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-secondary rounded-full text-xs text-white flex items-center justify-center font-semibold">
-                  5
-                </span>
-              </Button>
-              <Avatar className="cursor-pointer ring-2 ring-primary/20 hover:ring-primary/40 transition-all">
-                <AvatarFallback className="gradient-primary text-white">😊</AvatarFallback>
-              </Avatar>
+              {isAuthenticated ? (
+                <>
+                  <Button variant="ghost" size="icon" className="relative">
+                    <Icon name="Bell" size={20} />
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-secondary rounded-full text-xs text-white flex items-center justify-center font-semibold">
+                      5
+                    </span>
+                  </Button>
+                  <Avatar 
+                    className="cursor-pointer ring-2 ring-primary/20 hover:ring-primary/40 transition-all"
+                    onClick={() => setActiveTab('profile')}
+                  >
+                    <AvatarFallback className="gradient-primary text-white">{userProfile.avatar}</AvatarFallback>
+                  </Avatar>
+                </>
+              ) : (
+                <Button 
+                  onClick={() => setShowAuthDialog(true)} 
+                  className="gradient-primary"
+                >
+                  Войти
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -497,24 +605,50 @@ const Index = () => {
           </TabsContent>
 
           <TabsContent value="profile" className="animate-fade-in">
-            <Card className="glass border-primary/20">
-              <div className="relative h-32 gradient-primary rounded-t-xl" />
-              <CardContent className="space-y-6 -mt-16 relative">
-                <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
-                  <Avatar className="w-32 h-32 ring-4 ring-background">
-                    <AvatarFallback className="bg-gradient-to-br from-accent to-primary text-5xl text-white">
-                      😊
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 text-center md:text-left space-y-2">
-                    <h2 className="text-3xl font-bold">Ваше имя</h2>
-                    <p className="text-muted-foreground">@username</p>
-                    <p className="max-w-md">Рассказываю о технологиях, делюсь опытом и создаю полезный контент 🚀</p>
+            {!isAuthenticated ? (
+              <Card className="glass border-primary/20">
+                <CardContent className="py-20 text-center space-y-6">
+                  <div className="w-24 h-24 rounded-full gradient-primary mx-auto flex items-center justify-center text-5xl">
+                    🔒
                   </div>
-                  <Button className="gradient-primary">
-                    Редактировать профиль
+                  <div className="space-y-2">
+                    <h2 className="text-2xl font-bold">Войдите в аккаунт</h2>
+                    <p className="text-muted-foreground">Чтобы увидеть свой профиль, нужно авторизоваться</p>
+                  </div>
+                  <Button 
+                    onClick={() => setShowAuthDialog(true)}
+                    className="gradient-primary"
+                    size="lg"
+                  >
+                    Войти или зарегистрироваться
                   </Button>
-                </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="glass border-primary/20">
+                <div className="relative h-32 gradient-primary rounded-t-xl" />
+                <CardContent className="space-y-6 -mt-16 relative">
+                  <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
+                    <Avatar className="w-32 h-32 ring-4 ring-background">
+                      <AvatarFallback className="bg-gradient-to-br from-accent to-primary text-5xl text-white">
+                        {userProfile.avatar}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 text-center md:text-left space-y-2">
+                      <h2 className="text-3xl font-bold">{userProfile.name}</h2>
+                      <p className="text-muted-foreground">@{userProfile.username}</p>
+                      <p className="max-w-md">{userProfile.bio}</p>
+                    </div>
+                    <Button 
+                      className="gradient-primary"
+                      onClick={() => {
+                        setEditProfile(userProfile);
+                        setShowEditProfile(true);
+                      }}
+                    >
+                      Редактировать профиль
+                    </Button>
+                  </div>
 
                 <div className="grid grid-cols-3 gap-4 py-6">
                   <div className="text-center space-y-1">
@@ -539,18 +673,19 @@ const Index = () => {
 
                 <Separator />
 
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-lg">Интересы</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {['Дизайн', 'Разработка', 'Искусство', 'Технологии', 'Путешествия'].map((interest) => (
-                      <Badge key={interest} variant="secondary" className="px-4 py-2">
-                        {interest}
-                      </Badge>
-                    ))}
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-lg">Интересы</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {userProfile.interests.map((interest) => (
+                        <Badge key={interest} variant="secondary" className="px-4 py-2">
+                          {interest}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="settings" className="animate-fade-in">
@@ -630,22 +765,228 @@ const Index = () => {
 
                   <Separator />
 
-                  <div className="flex items-center justify-between p-4 rounded-xl hover:bg-destructive/5 transition-colors cursor-pointer">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
-                        <Icon name="LogOut" className="text-destructive" size={18} />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-destructive">Выйти</p>
+                  {isAuthenticated && (
+                    <div 
+                      className="flex items-center justify-between p-4 rounded-xl hover:bg-destructive/5 transition-colors cursor-pointer"
+                      onClick={() => {
+                        setIsAuthenticated(false);
+                        setActiveTab('feed');
+                        toast({
+                          title: 'Вы вышли',
+                          description: 'До скорой встречи!',
+                        });
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                          <Icon name="LogOut" className="text-destructive" size={18} />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-destructive">Выйти</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
+        <DialogContent className="glass sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">
+              {authMode === 'login' ? 'Вход в мир+' : 'Регистрация'}
+            </DialogTitle>
+            <DialogDescription>
+              {authMode === 'login' 
+                ? 'Войдите в свой аккаунт' 
+                : 'Создайте новый аккаунт'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {authMode === 'login' ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="your@email.com"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  className="bg-background/60"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Пароль</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleLogin();
+                  }}
+                  className="bg-background/60"
+                />
+              </div>
+              <Button 
+                onClick={handleLogin}
+                disabled={!loginEmail || !loginPassword}
+                className="w-full gradient-primary"
+              >
+                Войти
+              </Button>
+              <div className="text-center text-sm">
+                Нет аккаунта?{' '}
+                <button
+                  onClick={() => setAuthMode('register')}
+                  className="text-primary font-semibold hover:underline"
+                >
+                  Зарегистрироваться
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reg-name">Имя</Label>
+                <Input
+                  id="reg-name"
+                  placeholder="Ваше имя"
+                  value={registerName}
+                  onChange={(e) => setRegisterName(e.target.value)}
+                  className="bg-background/60"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reg-email">Email</Label>
+                <Input
+                  id="reg-email"
+                  type="email"
+                  placeholder="your@email.com"
+                  value={registerEmail}
+                  onChange={(e) => setRegisterEmail(e.target.value)}
+                  className="bg-background/60"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reg-password">Пароль</Label>
+                <Input
+                  id="reg-password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={registerPassword}
+                  onChange={(e) => setRegisterPassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleRegister();
+                  }}
+                  className="bg-background/60"
+                />
+              </div>
+              <Button 
+                onClick={handleRegister}
+                disabled={!registerName || !registerEmail || !registerPassword}
+                className="w-full gradient-primary"
+              >
+                Создать аккаунт
+              </Button>
+              <div className="text-center text-sm">
+                Уже есть аккаунт?{' '}
+                <button
+                  onClick={() => setAuthMode('login')}
+                  className="text-primary font-semibold hover:underline"
+                >
+                  Войти
+                </button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showEditProfile} onOpenChange={setShowEditProfile}>
+        <DialogContent className="glass sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">Редактировать профиль</DialogTitle>
+            <DialogDescription>
+              Измените информацию о себе
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Имя</Label>
+              <Input
+                id="edit-name"
+                value={editProfile.name}
+                onChange={(e) => setEditProfile(prev => ({ ...prev, name: e.target.value }))}
+                className="bg-background/60"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-username">Никнейм</Label>
+              <Input
+                id="edit-username"
+                value={editProfile.username}
+                onChange={(e) => setEditProfile(prev => ({ ...prev, username: e.target.value }))}
+                className="bg-background/60"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-avatar">Эмодзи аватара</Label>
+              <Input
+                id="edit-avatar"
+                value={editProfile.avatar}
+                onChange={(e) => setEditProfile(prev => ({ ...prev, avatar: e.target.value }))}
+                className="bg-background/60"
+                maxLength={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-bio">О себе</Label>
+              <Textarea
+                id="edit-bio"
+                value={editProfile.bio}
+                onChange={(e) => setEditProfile(prev => ({ ...prev, bio: e.target.value }))}
+                className="bg-background/60 resize-none"
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-interests">Интересы (через запятую)</Label>
+              <Input
+                id="edit-interests"
+                value={editProfile.interests.join(', ')}
+                onChange={(e) => setEditProfile(prev => ({ 
+                  ...prev, 
+                  interests: e.target.value.split(',').map(i => i.trim()).filter(i => i) 
+                }))}
+                className="bg-background/60"
+                placeholder="Дизайн, Разработка, Искусство"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                onClick={handleSaveProfile}
+                className="flex-1 gradient-primary"
+              >
+                Сохранить
+              </Button>
+              <Button 
+                onClick={() => setShowEditProfile(false)}
+                variant="outline"
+              >
+                Отмена
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
