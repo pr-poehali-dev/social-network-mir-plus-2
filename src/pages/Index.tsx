@@ -10,6 +10,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 
+interface Comment {
+  id: number;
+  author: string;
+  avatar: string;
+  content: string;
+  timestamp: string;
+}
+
 interface Post {
   id: number;
   author: string;
@@ -20,6 +28,7 @@ interface Post {
   comments: number;
   timestamp: string;
   liked: boolean;
+  commentsList?: Comment[];
 }
 
 interface Message {
@@ -35,6 +44,8 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState('feed');
   const [searchQuery, setSearchQuery] = useState('');
   const [newPost, setNewPost] = useState('');
+  const [showComments, setShowComments] = useState<{[key: number]: boolean}>({});
+  const [newComment, setNewComment] = useState<{[key: number]: string}>({});
 
   const [posts, setPosts] = useState<Post[]>([
     {
@@ -46,6 +57,10 @@ const Index = () => {
       comments: 8,
       timestamp: '2 часа назад',
       liked: false,
+      commentsList: [
+        { id: 1, author: 'Иван Сидоров', avatar: '👨', content: 'Поздравляю! Отличная работа!', timestamp: '1 час назад' },
+        { id: 2, author: 'Мария Иванова', avatar: '👩', content: 'Супер! Жду результатов 🎉', timestamp: '30 мин назад' },
+      ],
     },
     {
       id: 2,
@@ -57,6 +72,11 @@ const Index = () => {
       comments: 15,
       timestamp: '5 часов назад',
       liked: true,
+      commentsList: [
+        { id: 1, author: 'Петр Васильев', avatar: '👨‍💼', content: 'Какая библиотека? Поделись ссылкой!', timestamp: '4 часа назад' },
+        { id: 2, author: 'Ольга Морозова', avatar: '👩‍💻', content: 'Тоже хочу попробовать!', timestamp: '3 часа назад' },
+        { id: 3, author: 'Сергей Кузнецов', avatar: '👨‍🎨', content: 'Отличная находка, спасибо за инфо', timestamp: '2 часа назад' },
+      ],
     },
     {
       id: 3,
@@ -67,6 +87,10 @@ const Index = () => {
       comments: 23,
       timestamp: '1 день назад',
       liked: false,
+      commentsList: [
+        { id: 1, author: 'Анна Петрова', avatar: '👩‍💼', content: 'Очень стильно! 💜', timestamp: '20 часов назад' },
+        { id: 2, author: 'Дмитрий Козлов', avatar: '👨‍💻', content: 'Яркие цвета — это круто!', timestamp: '18 часов назад' },
+      ],
     },
   ]);
 
@@ -96,9 +120,38 @@ const Index = () => {
         comments: 0,
         timestamp: 'Только что',
         liked: false,
+        commentsList: [],
       };
       setPosts([post, ...posts]);
       setNewPost('');
+    }
+  };
+
+  const toggleComments = (postId: number) => {
+    setShowComments(prev => ({ ...prev, [postId]: !prev[postId] }));
+  };
+
+  const handleAddComment = (postId: number) => {
+    const commentText = newComment[postId]?.trim();
+    if (commentText) {
+      setPosts(posts.map(post => {
+        if (post.id === postId) {
+          const newCommentObj: Comment = {
+            id: (post.commentsList?.length || 0) + 1,
+            author: 'Вы',
+            avatar: '😊',
+            content: commentText,
+            timestamp: 'Только что',
+          };
+          return {
+            ...post,
+            comments: post.comments + 1,
+            commentsList: [...(post.commentsList || []), newCommentObj],
+          };
+        }
+        return post;
+      }));
+      setNewComment(prev => ({ ...prev, [postId]: '' }));
     }
   };
 
@@ -251,7 +304,11 @@ const Index = () => {
                           <Icon name={post.liked ? "Heart" : "Heart"} size={18} className={post.liked ? 'fill-current' : ''} />
                           <span className="ml-2 font-semibold">{post.likes}</span>
                         </Button>
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => toggleComments(post.id)}
+                        >
                           <Icon name="MessageCircle" size={18} />
                           <span className="ml-2">{post.comments}</span>
                         </Button>
@@ -263,6 +320,62 @@ const Index = () => {
                         <Icon name="Bookmark" size={18} />
                       </Button>
                     </div>
+
+                    {showComments[post.id] && (
+                      <div className="mt-4 space-y-4 animate-fade-in">
+                        <Separator />
+                        <div className="space-y-3">
+                          {post.commentsList && post.commentsList.length > 0 ? (
+                            post.commentsList.map((comment) => (
+                              <div key={comment.id} className="flex gap-3 p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors">
+                                <Avatar className="w-8 h-8">
+                                  <AvatarFallback className="bg-gradient-to-br from-primary/20 to-secondary/20 text-lg">
+                                    {comment.avatar}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-semibold text-sm">{comment.author}</p>
+                                    <p className="text-xs text-muted-foreground">{comment.timestamp}</p>
+                                  </div>
+                                  <p className="text-sm">{comment.content}</p>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-sm text-muted-foreground text-center py-4">Пока нет комментариев. Будьте первым!</p>
+                          )}
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                          <Avatar className="w-8 h-8">
+                            <AvatarFallback className="gradient-primary text-white text-sm">😊</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 flex gap-2">
+                            <Input
+                              placeholder="Добавить комментарий..."
+                              value={newComment[post.id] || ''}
+                              onChange={(e) => setNewComment(prev => ({ ...prev, [post.id]: e.target.value }))}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleAddComment(post.id);
+                                }
+                              }}
+                              className="bg-background/60 border-primary/20 focus:border-primary/50"
+                            />
+                            <Button
+                              size="icon"
+                              onClick={() => handleAddComment(post.id)}
+                              disabled={!newComment[post.id]?.trim()}
+                              className="gradient-primary hover:opacity-90"
+                            >
+                              <Icon name="Send" size={18} />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
